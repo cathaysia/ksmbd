@@ -109,7 +109,7 @@ static int alloc_lease(struct oplock_info *opinfo, struct lease_ctx_info *lctx)
 	lease->duration = lctx->duration;
 	memcpy(lease->parent_lease_key, lctx->parent_lease_key, SMB2_LEASE_KEY_SIZE);
 	lease->version = lctx->version;
-	lease->epoch = 0;
+	lease->epoch = le16_to_cpu(lctx->epoch);
 	INIT_LIST_HEAD(&opinfo->lease_entry);
 	opinfo->o_lease = lease;
 
@@ -1007,7 +1007,7 @@ static int smb2_lease_break_noti(struct oplock_info *opinfo)
 	br_info->curr_state = lease->state;
 	br_info->new_state = lease->new_state;
 	if (lease->version == 2)
-		br_info->epoch = cpu_to_le16(++lease->epoch);
+		br_info->epoch = cpu_to_le16(lease->epoch);
 	else
 		br_info->epoch = 0;
 	memcpy(br_info->lease_key, lease->lease_key, SMB2_LEASE_KEY_SIZE);
@@ -1594,6 +1594,7 @@ void create_lease_buf(u8 *rbuf, struct lease *lease)
 		buf->lcontext.LeaseKeyLow = *((__le64 *)LeaseKey);
 		buf->lcontext.LeaseKeyHigh = *((__le64 *)(LeaseKey + 8));
 		buf->lcontext.LeaseFlags = lease->flags;
+		buf->lcontext.Epoch = cpu_to_le16(++lease->epoch);
 		buf->lcontext.LeaseState = lease->state;
 		buf->lcontext.ParentLeaseKeyLow = *((__le64 *)ParentLeaseKey);
 		buf->lcontext.ParentLeaseKeyHigh = *((__le64 *)(ParentLeaseKey + 8));
@@ -1669,6 +1670,7 @@ struct lease_ctx_info *parse_lease_state(void *open_req)
 			*((__le64 *)(lreq->lease_key + 8)) = lc->lcontext.LeaseKeyHigh;
 			lreq->req_state = lc->lcontext.LeaseState;
 			lreq->flags = lc->lcontext.LeaseFlags;
+			lreq->epoch = lc->lcontext.Epoch;
 			lreq->duration = lc->lcontext.LeaseDuration;
 			*((__le64 *)lreq->parent_lease_key) = lc->lcontext.ParentLeaseKeyLow;
 			*((__le64 *)(lreq->parent_lease_key + 8)) = lc->lcontext.ParentLeaseKeyHigh;
