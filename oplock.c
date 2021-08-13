@@ -578,6 +578,7 @@ static inline int compare_guid_key(struct oplock_info *opinfo,
  * Return:      oplock(lease) object on success, otherwise NULL
  */
 static struct oplock_info *same_client_has_lease(struct ksmbd_inode *ci,
+						 struct ksmbd_inode *p_ci,
 						 char *client_guid,
 						 struct lease_ctx_info *lctx)
 {
@@ -594,12 +595,22 @@ static struct oplock_info *same_client_has_lease(struct ksmbd_inode *ci,
 	 * of same client
 	 */
 	read_lock(&ci->m_lock);
+
+	if (p_ci) { 
+		list_for_each_entry(p_opinfo, &p_ci->m_op_list, op_entry) {
+			if (!opinfo->is_lease)
+				continue;
+			ret = compare_guid_key(opinfo, client_guid,
+					lctx->parent_lease_key);
+
+		}
+	}
+
 	list_for_each_entry(opinfo, &ci->m_op_list, op_entry) {
 		if (!opinfo->is_lease)
 			continue;
 		read_unlock(&ci->m_lock);
 		lease = opinfo->o_lease;
-
 		ret = compare_guid_key(opinfo, client_guid, lctx->lease_key);
 		if (ret) {
 			m_opinfo = opinfo;
@@ -1007,7 +1018,7 @@ static int smb2_lease_break_noti(struct oplock_info *opinfo)
 	br_info->curr_state = lease->state;
 	br_info->new_state = lease->new_state;
 	if (lease->version == 2)
-		br_info->epoch = cpu_to_le16(lease->epoch);
+		br_info->epoch = cpu_to_le16(++lease->epoch);
 	else
 		br_info->epoch = 0;
 	memcpy(br_info->lease_key, lease->lease_key, SMB2_LEASE_KEY_SIZE);
@@ -1309,10 +1320,6 @@ int smb_grant_oplock(struct ksmbd_work *work, int req_op_level, u64 pid,
 	bool prev_op_has_lease;
 	__le32 prev_op_state = 0;
 
-	/* not support directory lease */
-	if (S_ISDIR(file_inode(fp->filp)->i_mode))
-		return 0;
-
 	opinfo = alloc_opinfo(work, pid, tid);
 	if (!opinfo)
 		return -ENOMEM;
@@ -1338,9 +1345,14 @@ int smb_grant_oplock(struct ksmbd_work *work, int req_op_level, u64 pid,
 
 	if (lctx) {
 		struct oplock_info *m_opinfo;
+		struct ksmbd_inode *p_ci = NULL;
+
+		if (lctx->flags & SMB2_LEASE_FLAG_PARENT_LEASE_KEY_SET_LE) { 
+			p_ci = ksmbd_inode_lookup_by_vfsinode(d_inode(fp->filp->f_path.dentry->d_parent));
+		}
 
 		/* is lease already granted ? */
-		m_opinfo = same_client_has_lease(ci, sess->conn->ClientGUID,
+		m_opinfo = same_client_has_lease(ci, p_ci, sess->conn->ClientGUID,
 						 lctx);
 		if (m_opinfo) {
 			copy_lease(m_opinfo, opinfo);
@@ -1590,6 +1602,7 @@ void create_lease_buf(u8 *rbuf, struct lease *lease)
 		struct create_lease_v2 *buf = (struct create_lease_v2 *)rbuf;
 		char *ParentLeaseKey = (char *)&lease->parent_lease_key;
 
+		pr_err("%s lease v2\n", __func__);
 		memset(buf, 0, sizeof(struct create_lease_v2));
 		buf->lcontext.LeaseKeyLow = *((__le64 *)LeaseKey);
 		buf->lcontext.LeaseKeyHigh = *((__le64 *)(LeaseKey + 8));
@@ -1611,6 +1624,7 @@ void create_lease_buf(u8 *rbuf, struct lease *lease)
 	} else {
 		struct create_lease *buf = (struct create_lease *)rbuf;
 
+		pr_err("%s lease v1\n", __func__);
 		memset(buf, 0, sizeof(struct create_lease));
 		buf->lcontext.LeaseKeyLow = *((__le64 *)LeaseKey);
 		buf->lcontext.LeaseKeyHigh = *((__le64 *)(LeaseKey + 8));
@@ -1666,10 +1680,12 @@ struct lease_ctx_info *parse_lease_state(void *open_req)
 		if (sizeof(struct lease_context_v2) == le32_to_cpu(cc->DataLength)) {
 			struct create_lease_v2 *lc = (struct create_lease_v2 *)cc;
 
+			pr_err("%s lease v2\n", __func__);
 			*((__le64 *)lreq->lease_key) = lc->lcontext.LeaseKeyLow;
 			*((__le64 *)(lreq->lease_key + 8)) = lc->lcontext.LeaseKeyHigh;
 			lreq->req_state = lc->lcontext.LeaseState;
 			lreq->flags = lc->lcontext.LeaseFlags;
+			pr_err("lreq->flags : %x\n", lreq->flags);
 			lreq->epoch = lc->lcontext.Epoch;
 			lreq->duration = lc->lcontext.LeaseDuration;
 			*((__le64 *)lreq->parent_lease_key) = lc->lcontext.ParentLeaseKeyLow;
@@ -1684,6 +1700,7 @@ struct lease_ctx_info *parse_lease_state(void *open_req)
 			lreq->flags = lc->lcontext.LeaseFlags;
 			lreq->duration = lc->lcontext.LeaseDuration;
 			lreq->version = 1;
+			pr_err("%s lease v1\n", __func__);
 		}
 		return lreq;
 	}
