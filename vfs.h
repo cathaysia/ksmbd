@@ -229,4 +229,5 @@ int ksmbd_vfs_set_init_posix_acl(struct user_namespace *user_ns,
 int ksmbd_vfs_inherit_posix_acl(struct user_namespace *user_ns,
 				struct inode *inode,
 				struct inode *parent_inode);
+struct ksmbd_inode *ksmbd_inode_lookup_by_vfsinode(struct inode *inode);
 #endif /* __KSMBD_VFS_H__ */

@@ -86,7 +86,7 @@ static struct ksmbd_inode *ksmbd_inode_lookup(struct ksmbd_file *fp)
 	return __ksmbd_inode_lookup(file_inode(fp->filp));
 }
 
-static struct ksmbd_inode *ksmbd_inode_lookup_by_vfsinode(struct inode *inode)
+struct ksmbd_inode *ksmbd_inode_lookup_by_vfsinode(struct inode *inode)
 {
 	struct ksmbd_inode *ci;
 

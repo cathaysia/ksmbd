@@ -597,12 +597,13 @@ static struct oplock_info *same_client_has_lease(struct ksmbd_inode *ci,
 	read_lock(&ci->m_lock);
 
 	if (p_ci) { 
-		list_for_each_entry(p_opinfo, &p_ci->m_op_list, op_entry) {
+		list_for_each_entry(opinfo, &p_ci->m_op_list, op_entry) {
 			if (!opinfo->is_lease)
 				continue;
 			ret = compare_guid_key(opinfo, client_guid,
 					lctx->parent_lease_key);
-
+			if (!ret)
+				goto out_unlock;
 		}
 	}
 
@@ -644,6 +645,8 @@ static struct oplock_info *same_client_has_lease(struct ksmbd_inode *ci,
 		}
 		read_lock(&ci->m_lock);
 	}
+
+out_unlock:
 	read_unlock(&ci->m_lock);
 
 	return m_opinfo;
