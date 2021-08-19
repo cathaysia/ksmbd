@@ -3000,6 +3000,15 @@ int smb2_open(struct ksmbd_work *work)
 			pr_err(
 				    "lease req for(%s) req oplock state 0x%x, lease state 0x%x\n",
 				    name, req_op_level, lc->req_state);
+
+		/*
+		 * Compare parent lease using parent key. If there is no
+		 * a lease that has same parent key, Send lease break noti.
+		 */
+		ksmbd_parent_lease_break(fp, lc, sess->conn->ClientGUID);
+
+
+
 			rc = find_same_lease_key(sess, fp->f_ci, lc);
 			if (rc)
 				goto err_out;
