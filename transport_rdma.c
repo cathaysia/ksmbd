@@ -80,7 +80,7 @@ static int smb_direct_max_fragmented_recv_size = 1024 * 1024;
 /*  The maximum single-message size which can be received */
 static int smb_direct_max_receive_size = 8192;
 
-static int smb_direct_max_read_write_size = 1048512;
+static int smb_direct_max_read_write_size = 256 * 1024;//1048512;
 
 static int smb_direct_max_outstanding_rw_ops = 8;
 
@@ -1650,6 +1650,7 @@ static int smb_direct_init_params(struct smb_direct_transport *t,
 	 */
 	t->max_send_size = smb_direct_max_send_size;
 	max_send_sges = DIV_ROUND_UP(t->max_send_size, PAGE_SIZE) + 2;
+	pr_err("max_send_sges : %d\n", max_send_sges);
 	if (max_send_sges > SMB_DIRECT_MAX_SEND_SGES) {
 		pr_err("max_send_size %d is too large\n", t->max_send_size);
 		return -EINVAL;
@@ -1667,8 +1668,10 @@ static int smb_direct_init_params(struct smb_direct_transport *t,
 	max_rw_wrs += rdma_rw_mr_factor(device, t->cm_id->port_num,
 			max_pages) * 2;
 	max_rw_wrs *= smb_direct_max_outstanding_rw_ops;
-
+	pr_err("max_rw_wrs : %d\n", max_rw_wrs);
+d
 	max_send_wrs = smb_direct_send_credit_target + max_rw_wrs;
+	pr_err("max_send_wrs : %d, device->attrs.max_cqe : %d, device->attrs.max_qp_wr : %d\n", max_send_wrs, device->attrs.max_cqe, device->attrs.max_qp_wr);
 	if (max_send_wrs > device->attrs.max_cqe ||
 	    max_send_wrs > device->attrs.max_qp_wr) {
 		pr_err("consider lowering send_credit_target = %d, or max_outstanding_rw_ops = %d\n",
@@ -1693,6 +1696,7 @@ static int smb_direct_init_params(struct smb_direct_transport *t,
 		       device->attrs.max_send_sge);
 		return -EINVAL;
 	}
+
 	if (device->attrs.max_recv_sge < SMB_DIRECT_MAX_RECV_SGES) {
 		pr_err("warning: device max_recv_sge = %d too small\n",
 		       device->attrs.max_recv_sge);
@@ -2076,6 +2080,34 @@ static int smb_direct_ib_client_add(struct ib_device *ib_dev)
 	/* Set 5445 port if device type is iWARP(No IB) */
 	if (ib_dev->node_type != RDMA_NODE_IB_CA)
 		smb_direct_port = SMB_DIRECT_PORT_IWARP;
+
+	pr_err("max_qp_wr : %d\n", ib_dev->attrs.max_qp_wr);
+	pr_err("max_send_sge : %d\n", ib_dev->attrs.max_send_sge);
+	pr_err("max_recv_sge : %d\n", ib_dev->attrs.max_recv_sge);
+	pr_err("max_sge_rd : %d\n", ib_dev->attrs.max_sge_rd);
+	pr_err("max_mr_size : %lld\n", ib_dev->attrs.max_mr_size);
+	pr_err("max_dm_size : %lld\n", ib_dev->attrs.max_dm_size);
+	pr_err("max_sge_rd : %d\n", ib_dev->attrs.max_sge_rd);
+	pr_err("max_cq : %d\n", ib_dev->attrs.max_cq);
+	pr_err("max_cqe : %d\n", ib_dev->attrs.max_cqe);
+	pr_err("max_mr : %d\n", ib_dev->attrs.max_mr);
+	pr_err("max_pd : %d\n", ib_dev->attrs.max_pd);
+	pr_err("max_qp_rd_atom : %d\n", ib_dev->attrs.max_qp_rd_atom);
+	pr_err("max_ee_rd_atom : %d\n", ib_dev->attrs.max_ee_rd_atom);
+	pr_err("max_res_rd_atom : %d\n", ib_dev->attrs.max_res_rd_atom);
+	pr_err("max_qp_init_rd_atom : %d\n", ib_dev->attrs.max_qp_init_rd_atom);
+	pr_err("max_ee_init_rd_atom : %d\n", ib_dev->attrs.max_ee_init_rd_atom);
+	pr_err("max_srq : %d\n", ib_dev->attrs.max_srq);
+	pr_err("max_srq_wr : %d\n", ib_dev->attrs.max_srq_wr);
+	pr_err("max_srq_sge : %d\n", ib_dev->attrs.max_srq_sge);
+	pr_err("max_ee : %d\n", ib_dev->attrs.max_ee);
+	pr_err("max_rdd : %d\n", ib_dev->attrs.max_rdd);
+	pr_err("max_mw : %d\n", ib_dev->attrs.max_mw);
+	pr_err("max_ah : %d\n", ib_dev->attrs.max_ah);
+	pr_err("max_sgl_rd : %d\n", ib_dev->attrs.max_sgl_rd);
+	pr_err("page_size_cap : %lld\n", ib_dev->attrs.page_size_cap);
+	pr_err("tm cap max_ops : %d\n", ib_dev->attrs.tm_caps.max_ops);
+	pr_err("tm cap max_sge : %d\n", ib_dev->attrs.tm_caps.max_sge);
 
 	if (!ib_dev->ops.get_netdev ||
 	    !rdma_frwr_is_supported(&ib_dev->attrs))
