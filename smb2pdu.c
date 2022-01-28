@@ -5376,7 +5376,7 @@ int smb2_close(struct ksmbd_work *work)
 	} else {
 		volatile_id = le64_to_cpu(req->VolatileFileId);
 	}
-	ksmbd_debug(SMB, "volatile_id = %llu\n", volatile_id);
+	pr_err("volatile_id = %llu\n", volatile_id);
 
 	rsp->StructureSize = cpu_to_le16(60);
 	rsp->Reserved = 0;
@@ -5385,6 +5385,7 @@ int smb2_close(struct ksmbd_work *work)
 		fp = ksmbd_lookup_fd_fast(work, volatile_id);
 		if (!fp) {
 			err = -ENOENT;
+			pr_err("%s : %d\n", __func__, __LINE__);
 			goto out;
 		}
 
@@ -5414,12 +5415,15 @@ int smb2_close(struct ksmbd_work *work)
 	}
 
 	err = ksmbd_close_fd(work, volatile_id);
+	pr_err("%s, err : %d\n", __func__, err);
 out:
 	if (err) {
+			pr_err("%s : rsp->hdr.Status : %d\n", __func__, rsp->hdr.Status);
 		if (rsp->hdr.Status == 0)
 			rsp->hdr.Status = STATUS_FILE_CLOSED;
 		smb2_set_err_rsp(work);
 	} else {
+			pr_err("%s : %d\n", __func__, __LINE__);
 		inc_rfc1001_len(work->response_buf, 60);
 	}
 
@@ -6274,11 +6278,12 @@ int smb2_read(struct ksmbd_work *work)
 	ssize_t nbytes = 0, remain_bytes = 0;
 	int err = 0;
 
+			pr_err("%s : %d\n", __func__, __LINE__);
 	WORK_BUFFERS(work, req, rsp);
 
 	if (test_share_config_flag(work->tcon->share_conf,
 				   KSMBD_SHARE_FLAG_PIPE)) {
-		ksmbd_debug(SMB, "IPC pipe read request\n");
+		pr_err("IPC pipe read request\n");
 		return smb2_read_pipe(work);
 	}
 
@@ -6287,6 +6292,7 @@ int smb2_read(struct ksmbd_work *work)
 		unsigned int ch_offset = le16_to_cpu(req->ReadChannelInfoOffset);
 
 		if (ch_offset < offsetof(struct smb2_read_req, Buffer)) {
+			pr_err("%s : %d\n", __func__, __LINE__);
 			err = -EINVAL;
 			goto out;
 		}
@@ -6303,6 +6309,7 @@ int smb2_read(struct ksmbd_work *work)
 	fp = ksmbd_lookup_fd_slow(work, le64_to_cpu(req->VolatileFileId),
 				  le64_to_cpu(req->PersistentFileId));
 	if (!fp) {
+			pr_err("%s : %d\n", __func__, __LINE__);
 		err = -ENOENT;
 		goto out;
 	}
@@ -6318,7 +6325,7 @@ int smb2_read(struct ksmbd_work *work)
 	mincount = le32_to_cpu(req->MinimumCount);
 
 	if (length > conn->vals->max_read_size) {
-		ksmbd_debug(SMB, "limiting read size to max size(%u)\n",
+		pr_err("limiting read size to max size(%u)\n",
 			    conn->vals->max_read_size);
 		err = -EINVAL;
 		goto out;
@@ -6329,6 +6336,7 @@ int smb2_read(struct ksmbd_work *work)
 
 	work->aux_payload_buf = kvmalloc(length, GFP_KERNEL | __GFP_ZERO);
 	if (!work->aux_payload_buf) {
+			pr_err("%s : %d\n", __func__, __LINE__);
 		err = -ENOMEM;
 		goto out;
 	}
@@ -6336,10 +6344,12 @@ int smb2_read(struct ksmbd_work *work)
 	nbytes = ksmbd_vfs_read(work, fp, length, &offset);
 	if (nbytes < 0) {
 		err = nbytes;
+			pr_err("%s : err : %d\n", __func__, err);
 		goto out;
 	}
 
 	if ((nbytes == 0 && length != 0) || nbytes < mincount) {
+			pr_err("%s : err : %d\n", __func__, err);
 		kvfree(work->aux_payload_buf);
 		work->aux_payload_buf = NULL;
 		rsp->hdr.Status = STATUS_END_OF_FILE;
@@ -6378,9 +6388,11 @@ int smb2_read(struct ksmbd_work *work)
 	work->aux_payload_sz = nbytes;
 	inc_rfc1001_len(work->response_buf, nbytes);
 	ksmbd_fd_put(work, fp);
+			pr_err("%s : err : %d\n", __func__, err);
 	return 0;
 
 out:
+	pr_err("err : %d\n", err);
 	if (err) {
 		if (err == -EISDIR)
 			rsp->hdr.Status = STATUS_INVALID_DEVICE_REQUEST;
